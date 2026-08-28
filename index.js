@@ -3,6 +3,7 @@ require("dotenv").config();
 const { Client, GatewayIntentBits, Collection, Events, Partials, ActivityType, Status } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
+const afkManager = require("./utils/afkManager");
 
 const client = new Client({
   intents: [
@@ -56,21 +57,54 @@ client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild) return;
 
   const prefix = "'";
-  if (!message.content.startsWith(prefix)) return;
 
-  const args = message.content.slice(prefix.length).trim().split(/\s+/);
-  const commandName = args.shift().toLowerCase();
+  const isPrefixMessage = message.content.startsWith(prefix);
+  const commandName = isPrefixMessage ? message.content.slice(prefix.length).trim().split(/\s+/)[0]?.toLowerCase() : null;
+  const isAfkCommand = commandName === "afk";
 
-  const command = client.commands.get(commandName);
-  if (!command) {
+  if (afkManager.isReady() && !isAfkCommand) {
+    const afkStatus = await afkManager.getAfk(message.guild.id, message.author.id);
+    if (afkStatus) {
+      await afkManager.removeAfk(message.guild.id, message.author.id);
+      message.reply("\u00ab\u{1F44B} Welcome back! Your AFK status has been removed.\u00bb").catch(console.error);
+    }
+  }
+
+  if (isPrefixMessage) {
+    const args = message.content.slice(prefix.length).trim().split(/\s+/);
+    args.shift();
+
+    const command = client.commands.get(commandName);
+    if (command) {
+      try {
+        await command.execute(message, args);
+      } catch (error) {
+        console.error(error);
+        message.reply("Something went wrong while running that command. Please try again.");
+      }
+      return;
+    }
+
     return message.reply(`Unknown command \`${prefix}${commandName}\`. Type \`/help\` to see what I can do.`);
   }
 
-  try {
-    await command.execute(message, args);
-  } catch (error) {
-    console.error(error);
-    message.reply("Something went wrong while running that command. Please try again.");
+  if (afkManager.isReady() && message.mentions.users.size > 0) {
+    const mentionedIds = [...message.mentions.users.keys()].filter((id) => id !== message.author.id);
+    if (mentionedIds.length > 0) {
+      const afkUsers = await afkManager.getAfkUsers(message.guild.id, mentionedIds);
+      for (const afkUser of afkUsers) {
+        const discordUser = message.mentions.users.get(afkUser.user_id);
+        if (!discordUser) continue;
+        const displayName = discordUser.displayName || discordUser.username;
+        const duration = afkManager.formatDuration(Date.now() - new Date(afkUser.created_at).getTime());
+        let response = `\u00ab\u{1F4A4} ${displayName} is AFK`;
+        if (afkUser.reason) {
+          response += `\nReason: ${afkUser.reason}`;
+        }
+        response += `\nAFK for: ${duration}\u00bb`;
+        message.reply(response).catch(console.error);
+      }
+    }
   }
 });
 
@@ -90,6 +124,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } else {
       await interaction.reply(payload).catch(() => {});
     }
+  }
+});
+
+client.on(Events.GuildMemberRemove, async (member) => {
+  if (afkManager.isReady()) {
+    await afkManager.removeAfk(member.guild.id, member.id);
   }
 });
 

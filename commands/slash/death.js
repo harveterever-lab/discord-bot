@@ -1,10 +1,10 @@
 const { SlashCommandBuilder } = require("discord.js");
 
 function getDeathMessage(ping) {
-  if (ping < 80) return `I'm not dying 💀 I'm at ${ping}ms.`;
+  if (ping < 80) return `I'm not dying \u{1F480} I'm at ${ping}ms.`;
   if (ping < 150) return `I'm starting to feel it... ${ping}ms.`;
-  if (ping < 250) return `I'm dying 💀 I'm at ${ping}ms.`;
-  return `HELP I'M ACTUALLY DYING 💀 ${ping}ms.`;
+  if (ping < 250) return `I'm dying \u{1F480} I'm at ${ping}ms.`;
+  return `HELP I'M ACTUALLY DYING \u{1F480} ${ping}ms.`;
 }
 
 module.exports = {

@@ -7,6 +7,7 @@ A modular Discord bot built with discord.js v14.
 - **Prefix commands** (prefix: `'`)
   - `'emoji add (name)` — add an emoji from an attached image
   - `'sticker add (name)` — add a sticker from an attached image
+  - `'afk [reason]` — set your AFK status with an optional reason
 - **Slash commands**
   - `/help` — show all commands in a clean embed
   - `/death` — check bot latency with a funny message
@@ -38,11 +39,14 @@ A modular Discord bot built with discord.js v14.
 ├── index.js                # Bot entry point
 ├── commands/
 │   ├── prefix/             # Prefix commands
+│   │   ├── afk.js
 │   │   ├── emoji.js
 │   │   └── sticker.js
 │   └── slash/              # Slash commands
 │       ├── help.js
 │       └── death.js
+├── utils/
+│   └── afkManager.js       # AFK storage and helpers
 ├── railway.json            # Railway deployment config
 ├── package.json
 └── .env                    # Secrets (not committed)

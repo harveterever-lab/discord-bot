@@ -7,6 +7,15 @@ const CATEGORIES = {
     commands: [
       { name: "/help", description: "Show all commands" },
       { name: "/death", description: "Check bot latency" },
+      { name: "'afk", description: "Set your AFK status" },
+    ],
+  },
+  Expressions: {
+    description: "Emoji & sticker management",
+    color: 0x57f287,
+    commands: [
+      { name: "'emoji add", description: "Add an emoji" },
+      { name: "'sticker add", description: "Add a sticker" },
     ],
   },
 };

@@ -1,4 +1,4 @@
-const { PermissionsBitField, Attachment } = require("discord.js");
+const { PermissionsBitField } = require("discord.js");
 
 const VALID_EMOJI_NAME = /^[a-zA-Z0-9_]{2,32}$/;
 const SUPPORTED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"];

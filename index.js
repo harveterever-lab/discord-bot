@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const { Client, GatewayIntentBits, Collection, Events, Partials } = require("discord.js");
+const { Client, GatewayIntentBits, Collection, Events, Partials, ActivityType, Status } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
 
@@ -32,9 +32,24 @@ function loadCommandsFromDir(dir, collection) {
 loadCommandsFromDir(prefixCommandsPath, client.commands);
 loadCommandsFromDir(slashCommandsPath, client.slashCommands);
 
+const ACTIVITIES = ["/help", "your server", "with commands"];
+let activityInterval = null;
+
 client.once(Events.ClientReady, (c) => {
   console.log(`Logged in as ${c.user.tag}`);
   c.application.commands.set(client.slashCommands.map((cmd) => cmd.data)).catch(console.error);
+
+  c.user.setPresence({ status: Status.DoNotDisturb, activities: [{ name: ACTIVITIES[0], type: ActivityType.Playing }] });
+
+  if (activityInterval) clearInterval(activityInterval);
+  let index = 0;
+  activityInterval = setInterval(() => {
+    index = (index + 1) % ACTIVITIES.length;
+    c.user.setPresence({
+      status: Status.DoNotDisturb,
+      activities: [{ name: ACTIVITIES[index], type: ActivityType.Playing }],
+    });
+  }, 30000);
 });
 
 client.on(Events.MessageCreate, async (message) => {

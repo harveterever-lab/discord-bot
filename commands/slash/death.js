@@ -11,10 +11,10 @@ module.exports = {
   name: "death",
   data: new SlashCommandBuilder()
     .setName("death")
-    .setDescription("Check the bot's latency and get a funny status message"),
+    .setDescription("Am I dying?"),
   async execute(interaction) {
-    const sent = await interaction.reply({ content: "Pinging...", fetchReply: true });
-    const ping = sent.createdTimestamp - interaction.createdTimestamp;
+    const response = await interaction.reply({ content: "Pinging...", withResponse: true });
+    const ping = response.resource.message.createdTimestamp - interaction.createdTimestamp;
     await interaction.editReply(getDeathMessage(ping));
   },
 };

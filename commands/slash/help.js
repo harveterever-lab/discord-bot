@@ -1,4 +1,15 @@
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } = require("discord.js");
+
+const CATEGORIES = {
+  General: {
+    description: "General commands",
+    color: 0x5865f2,
+    commands: [
+      { name: "/help", description: "Show all commands" },
+      { name: "/death", description: "Check bot latency" },
+    ],
+  },
+};
 
 module.exports = {
   name: "help",
@@ -6,34 +17,60 @@ module.exports = {
     .setName("help")
     .setDescription("Show all available commands and how to use them"),
   async execute(interaction) {
-    const embed = new EmbedBuilder()
-      .setTitle("Bot Commands")
-      .setColor(0x5865f2)
-      .addFields(
-        {
-          name: "Prefix Commands  ('  )",
-          value: [
-            "**'emoji add (name)**",
-            "Add an emoji from an attached image. Requires *Manage Emojis* permission.",
-            "",
-            "**'sticker add (name)**",
-            "Add a sticker from an attached image. Requires *Manage Stickers* permission.",
-          ].join("\n"),
-        },
-        {
-          name: "Slash Commands  (/)",
-          value: [
-            "**/help**",
-            "Show this help message.",
-            "",
-            "**/death**",
-            "Check the bot's latency and get a funny status message.",
-          ].join("\n"),
-        }
-      )
-      .setFooter({ text: "Tip: attach an image when using 'emoji add or 'sticker add" })
-      .setTimestamp();
+    const categoryNames = Object.keys(CATEGORIES);
+    const buildEmbed = (categoryName) => {
+      const cat = CATEGORIES[categoryName];
+      const embed = new EmbedBuilder()
+        .setTitle("Bot Commands")
+        .setColor(cat.color)
+        .setDescription(`**${categoryName}** — ${cat.description}`)
+        .addFields(
+          cat.commands.map((cmd) => ({
+            name: cmd.name,
+            value: cmd.description,
+            inline: false,
+          }))
+        )
+        .setFooter({ text: "Select a category from the menu below" })
+        .setTimestamp();
+      return embed;
+    };
 
-    await interaction.reply({ embeds: [embed] });
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId("help-category")
+      .setPlaceholder("Select a category")
+      .addOptions(
+        categoryNames.map((name) => ({
+          label: name,
+          description: CATEGORIES[name].description,
+          value: name,
+        }))
+      );
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const response = await interaction.reply({
+      embeds: [buildEmbed(categoryNames[0])],
+      components: [row],
+      withResponse: true,
+    });
+
+    const message = response.resource.message;
+
+    const collector = message.createMessageComponentCollector({
+      componentType: ComponentType.StringSelect,
+      time: 60000,
+    });
+
+    collector.on("collect", async (selectInteraction) => {
+      const selected = selectInteraction.values[0];
+      await selectInteraction.update({ embeds: [buildEmbed(selected)] });
+    });
+
+    collector.on("end", async () => {
+      try {
+        await message.edit({ components: [] });
+      } catch {}
+    });
   },
 };

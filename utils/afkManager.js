@@ -1,33 +1,60 @@
-const { createClient } = require("@supabase/supabase-js");
+const fs = require("fs");
+const path = require("path");
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const AFK_FILE_PATH = process.env.AFK_FILE_PATH || path.join(__dirname, "..", "afk_data.json");
 
-let supabase = null;
+let afkData = {};
+let writeLock = Promise.resolve();
 
-try {
-  if (supabaseUrl && supabaseKey) {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } else {
-    console.warn("[AFK] Supabase credentials not found in environment. AFK feature will be disabled.");
+function loadAfkData() {
+  try {
+    if (fs.existsSync(AFK_FILE_PATH)) {
+      const raw = fs.readFileSync(AFK_FILE_PATH, "utf8");
+      afkData = JSON.parse(raw);
+    } else {
+      afkData = {};
+    }
+  } catch (error) {
+    console.error("[AFK] Failed to load AFK data file, starting fresh:", error);
+    afkData = {};
   }
-} catch (error) {
-  console.error("[AFK] Failed to initialize Supabase client:", error);
+}
+
+function persistAfkData() {
+  writeLock = writeLock
+    .then(() => {
+      const dir = path.dirname(AFK_FILE_PATH);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(AFK_FILE_PATH, JSON.stringify(afkData, null, 2), "utf8");
+    })
+    .catch((error) => {
+      console.error("[AFK] Failed to persist AFK data file:", error);
+    });
+  return writeLock;
+}
+
+loadAfkData();
+
+function isReady() {
+  return true;
+}
+
+function getKey(guildId, userId) {
+  return `${guildId}:${userId}`;
 }
 
 async function setAfk(guildId, userId, reason) {
-  if (!supabase) return null;
   try {
-    const { data, error } = await supabase
-      .from("afk_statuses")
-      .upsert(
-        { guild_id: guildId, user_id: userId, reason: reason || null, created_at: new Date().toISOString() },
-        { onConflict: "guild_id,user_id" }
-      )
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    const key = getKey(guildId, userId);
+    const record = {
+      guild_id: guildId,
+      user_id: userId,
+      reason: reason || null,
+      created_at: new Date().toISOString(),
+    };
+    afkData[key] = record;
+    await persistAfkData();
+    return record;
   } catch (error) {
     console.error("[AFK] Error setting AFK:", error);
     return null;
@@ -35,16 +62,9 @@ async function setAfk(guildId, userId, reason) {
 }
 
 async function getAfk(guildId, userId) {
-  if (!supabase) return null;
   try {
-    const { data, error } = await supabase
-      .from("afk_statuses")
-      .select("reason, created_at")
-      .eq("guild_id", guildId)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) throw error;
-    return data;
+    const key = getKey(guildId, userId);
+    return afkData[key] || null;
   } catch (error) {
     console.error("[AFK] Error getting AFK:", error);
     return null;
@@ -52,14 +72,12 @@ async function getAfk(guildId, userId) {
 }
 
 async function removeAfk(guildId, userId) {
-  if (!supabase) return false;
   try {
-    const { error } = await supabase
-      .from("afk_statuses")
-      .delete()
-      .eq("guild_id", guildId)
-      .eq("user_id", userId);
-    if (error) throw error;
+    const key = getKey(guildId, userId);
+    if (afkData[key]) {
+      delete afkData[key];
+      await persistAfkData();
+    }
     return true;
   } catch (error) {
     console.error("[AFK] Error removing AFK:", error);
@@ -68,15 +86,16 @@ async function removeAfk(guildId, userId) {
 }
 
 async function getAfkUsers(guildId, userIds) {
-  if (!supabase || !userIds.length) return [];
+  if (!userIds.length) return [];
   try {
-    const { data, error } = await supabase
-      .from("afk_statuses")
-      .select("user_id, reason, created_at")
-      .eq("guild_id", guildId)
-      .in("user_id", userIds);
-    if (error) throw error;
-    return data || [];
+    const results = [];
+    for (const userId of userIds) {
+      const key = getKey(guildId, userId);
+      if (afkData[key]) {
+        results.push(afkData[key]);
+      }
+    }
+    return results;
   } catch (error) {
     console.error("[AFK] Error getting AFK users:", error);
     return [];
@@ -84,13 +103,15 @@ async function getAfkUsers(guildId, userIds) {
 }
 
 async function removeAfkByUser(userId) {
-  if (!supabase) return false;
   try {
-    const { error } = await supabase
-      .from("afk_statuses")
-      .delete()
-      .eq("user_id", userId);
-    if (error) throw error;
+    let changed = false;
+    for (const key of Object.keys(afkData)) {
+      if (afkData[key].user_id === userId) {
+        delete afkData[key];
+        changed = true;
+      }
+    }
+    if (changed) await persistAfkData();
     return true;
   } catch (error) {
     console.error("[AFK] Error removing AFK by user:", error);
@@ -118,4 +139,4 @@ function formatDuration(ms) {
   return parts.slice(0, 2).join(", ");
 }
 
-module.exports = { setAfk, getAfk, removeAfk, getAfkUsers, removeAfkByUser, formatDuration, isReady: () => !!supabase };
+module.exports = { setAfk, getAfk, removeAfk, getAfkUsers, removeAfkByUser, formatDuration, isReady };
